@@ -62,7 +62,7 @@ In the [first commit](https://github.com/mesosphere/mesos-framework-tutorial/com
 
 'executor/example_executor.go' compiles to an executable binary which is capable of hosting tasks.  It implements the executor interface and for the most part just logs calls from Mesos.  The exception is the LaunchTask method which makes status updates regarding tasks, but does not actually do any work.
 
-If you compile and run the example code at this point you will see that the scheduler receives one resource offer from Mesos and then appears to block.  By not accepting the resource offer the scheduler has implicitly rejected the offer.  No tasks are launched.  A configurable timeout will eventually occur and the resource will again be offered to the scheduler.  The output should like this:
+If you compile and run the example code at this point you will see that the scheduler receives one resource offer from Mesos and then appears to block.  The output should like this:
 
 ```sh
 ...

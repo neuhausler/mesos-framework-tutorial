@@ -68,49 +68,57 @@ func (sched *ExampleScheduler) Disconnected(sched.SchedulerDriver) {
 	log.Infoln("Scheduler Disconnected")
 }
 
-func (sched *ExampleScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {
-	logOffers(offers)
+func (sched *ExampleScheduler) processOffer(driver sched.SchedulerDriver, offer *mesos.Offer) {
+	remainingCpus := getOfferCpu(offer)
+	remainingMems := getOfferMem(offer)
 
-	if sched.tasksLaunched >= sched.totalTasks {
-		return
+	if sched.tasksLaunched >= sched.totalTasks ||
+		remainingCpus < sched.cpuPerTask ||
+		remainingMems < sched.memPerTask {
+		driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
 	}
 
-	for _, offer := range offers {
-		remainingCpus := getOfferCpu(offer)
-		remainingMems := getOfferMem(offer)
+	// At this point we have determined we will be accepting at least part of this offer
+	var tasks []*mesos.TaskInfo
 
-		var tasks []*mesos.TaskInfo
-		for sched.cpuPerTask <= remainingCpus &&
-			sched.memPerTask <= remainingMems &&
-			sched.tasksLaunched < sched.totalTasks {
+	for sched.cpuPerTask <= remainingCpus &&
+		sched.memPerTask <= remainingMems &&
+		sched.tasksLaunched < sched.totalTasks {
 
-			log.Infof("Processing image %v of %v\n", sched.tasksLaunched, sched.totalTasks)
-			fileName := sched.images[sched.tasksLaunched]
-			sched.tasksLaunched++
+		log.Infof("Processing image %v of %v\n", sched.tasksLaunched, sched.totalTasks)
+		fileName := sched.images[sched.tasksLaunched]
+		sched.tasksLaunched++
 
-			taskId := &mesos.TaskID{
-				Value: proto.String(strconv.Itoa(sched.tasksLaunched)),
-			}
-
-			task := &mesos.TaskInfo{
-				Name:     proto.String("go-task-" + taskId.GetValue()),
-				TaskId:   taskId,
-				SlaveId:  offer.SlaveId,
-				Executor: sched.executor,
-				Resources: []*mesos.Resource{
-					util.NewScalarResource("cpus", sched.cpuPerTask),
-					util.NewScalarResource("mem", sched.memPerTask),
-				},
-				Data: []byte(fileName),
-			}
-			log.Infof("Prepared task: %s with offer %s for launch\n", task.GetName(), offer.Id.GetValue())
-
-			tasks = append(tasks, task)
-			remainingCpus -= sched.cpuPerTask
-			remainingMems -= sched.memPerTask
+		taskId := &mesos.TaskID{
+			Value: proto.String(strconv.Itoa(sched.tasksLaunched)),
 		}
-		log.Infoln("Launching ", len(tasks), "tasks for offer", offer.Id.GetValue())
-		driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+
+		task := &mesos.TaskInfo{
+			Name:     proto.String("go-task-" + taskId.GetValue()),
+			TaskId:   taskId,
+			SlaveId:  offer.SlaveId,
+			Executor: sched.executor,
+			Resources: []*mesos.Resource{
+				util.NewScalarResource("cpus", sched.cpuPerTask),
+				util.NewScalarResource("mem", sched.memPerTask),
+			},
+			Data: []byte(fileName),
+		}
+		log.Infof("Prepared task: %s with offer %s for launch\n", task.GetName(), offer.Id.GetValue())
+
+		tasks = append(tasks, task)
+		remainingCpus -= sched.cpuPerTask
+		remainingMems -= sched.memPerTask
+	}
+
+	log.Infoln("Launching ", len(tasks), "tasks for offer", offer.Id.GetValue())
+	driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+}
+
+func (sched *ExampleScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {
+	for _, offer := range offers {
+		log.Infof("Received Offer <%v> with cpus=%v mem=%v", offer.Id.GetValue(), getOfferCpu(offer), getOfferMem(offer))
+		sched.processOffer(driver, offer)
 	}
 }
 

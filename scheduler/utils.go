@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"os"
 
-	log "github.com/golang/glog"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	util "github.com/mesos/mesos-go/mesosutil"
 )
@@ -28,12 +27,6 @@ func getOfferCpu(offer *mesos.Offer) float64 {
 
 func getOfferMem(offer *mesos.Offer) float64 {
 	return getOfferScalar(offer, "mem")
-}
-
-func logOffers(offers []*mesos.Offer) {
-	for _, offer := range offers {
-		log.Infof("Received Offer <%v> with cpus=%v mem=%v", offer.Id.GetValue(), getOfferCpu(offer), getOfferMem(offer))
-	}
 }
 
 func readLines(path string) ([]string, error) {
